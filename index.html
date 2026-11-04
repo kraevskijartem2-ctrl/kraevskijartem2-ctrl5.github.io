@@ -1076,10 +1076,10 @@ function rawBase(x,z,free){
 }
 function wBuildTerrain(W){
   const R=W.roadPts;LOC.forEach(l=>{l.h=Math.max(3.6,rawBase(l.x,l.z,0));});
-  const n=WN+1,H=new Float32Array(n*n),pos=new Float32Array(n*n*3),col=new Float32Array(n*n*3);
+  const n=WN+1,H=new Float32Array(n*n),pos=new Float32Array(n*n*3),col=new Float32Array(n*n*3),DR=new Float32Array(n*n).fill(1e9);
+  R.forEach(p=>{const ci=Math.round((p.x+WR)/WCELL),cj=Math.round((p.z+WR)/WCELL);for(let j=Math.max(0,cj-11);j<=Math.min(WN,cj+11);j++)for(let i=Math.max(0,ci-11);i<=Math.min(WN,ci+11);i++){const dx=-WR+i*WCELL-p.x,dz=-WR+j*WCELL-p.z,d=dx*dx+dz*dz;if(d<DR[j*n+i])DR[j*n+i]=d;}});
   for(let j=0;j<n;j++)for(let i=0;i<n;i++){
-    const x=-WR+i*WCELL,z=-WR+j*WCELL;let dr=1e9;
-    for(let k=0;k<R.length;k++){const dx=R[k].x-x,dz=R[k].z-z,d=dx*dx+dz*dz;if(d<dr)dr=d;}dr=Math.sqrt(dr);
+    const x=-WR+i*WCELL,z=-WR+j*WCELL;const dr=Math.min(300,Math.sqrt(DR[j*n+i]));
     let dl=1e9,li=0;for(let k=0;k<LOC.length;k++){const d=Math.hypot(LOC[k].x-x,LOC[k].z-z)-LOC[k].fr;if(d<dl){dl=d;li=k;}}
     const free=sm(35,120,Math.min(dr,dl+40));
     let h=rawBase(x,z,free)+(fbm(x*.007,z*.007,5,4)-.5)*2*(7+22*sm(-450,-1000,z))*sm(30,150,Math.min(dr+20,dl+60));
@@ -1138,11 +1138,11 @@ function wLimitAt(x,z){for(const l of LOC)if(l.type!=='gas'&&(l.x-x)**2+(l.z-z)*
 function wLightState(axis){const t=(performance.now()/1000)%24;if(axis===0)return t<10?'g':t<12?'y':'r';return t<12?'r':t<22?'g':'y';}
 function wBuildRoadside(W){
   W.radars=[];W.lights=[];W.signs=[];
-  W.roads.forEach(r=>{const p=r.pts;let next=120;
-    for(let i=1;i<p.length-1;i++){if(r.cum[i]<next)continue;next+=300;const a=p[i-1],b=p[i+1],tx=b.x-a.x,tz=b.z-a.z,l=Math.hypot(tx,tz)||1,nx=-tz/l,nz=tx/l;
-      [-1,1].forEach(sd=>{const x=p[i].x+nx*sd*6.6,z=p[i].z+nz*sd*6.6,h=hAt(x,z);if(h<1)return;const g=buildSign();setSign(g,wLimitAt(x,z));g.position.set(x,h,z);g.rotation.y=Math.atan2(tx*sd,tz*sd);W.sc.add(g);W.signs.push(g);});}
-    [.3,.7].forEach((f,ri)=>{const i=Math.floor(p.length*f),a=p[i-1],b=p[i+1],tx=b.x-a.x,tz=b.z-a.z,l=Math.hypot(tx,tz)||1,x=p[i].x+(-tz/l)*6.8,z=p[i].z+(tx/l)*6.8;if(hAt(x,z)<1)return;
-      const g=buildRadar();g.position.set(x,hAt(x,z),z);g.rotation.y=Math.atan2(tx,tz);W.sc.add(g);W.radars.push({x:p[i].x,z:p[i].z,lim:wLimitAt(p[i].x,p[i].z)});});});
+  W.roads.forEach(r=>{const p=r.pts;let next=150;
+    for(let i=1;i<p.length-1;i++){if(r.cum[i]<next)continue;next+=450;const a=p[i-1],b=p[i+1],tx=b.x-a.x,tz=b.z-a.z,l=Math.hypot(tx,tz)||1,nx=-tz/l,nz=tx/l;
+      [1].forEach(sd=>{const x=p[i].x+nx*sd*6.6,z=p[i].z+nz*sd*6.6,h=hAt(x,z);if(h<1)return;const g=buildSign();setSign(g,wLimitAt(x,z));g.position.set(x,h,z);g.rotation.y=Math.atan2(tx*sd,tz*sd);W.sc.add(g);W.signs.push(g);g.userData.xz=[x,z];});}
+    [.5].forEach((f,ri)=>{const i=Math.floor(p.length*f),a=p[i-1],b=p[i+1],tx=b.x-a.x,tz=b.z-a.z,l=Math.hypot(tx,tz)||1,x=p[i].x+(-tz/l)*6.8,z=p[i].z+(tx/l)*6.8;if(hAt(x,z)<1)return;
+      const g=buildRadar();g.position.set(x,hAt(x,z),z);g.rotation.y=Math.atan2(tx,tz);W.sc.add(g);g.userData.xz=[x,z];W.signs.push(g);W.radars.push({x:p[i].x,z:p[i].z,lim:wLimitAt(p[i].x,p[i].z)});});});
   /* світлофори стоять на кожному в'їзді в перехрестя, праворуч від смуги, зі стоп-лінією */
   LITNODES.forEach(id=>{const l=locById(id);(W.inc[id]||[]).forEach(r=>{const p=r.pts,atA=r.a===id;let i=atA?0:p.length-1;
     while(i>0&&i<p.length-1&&Math.hypot(p[i].x-l.x,p[i].z-l.z)<18)i+=atA?1:-1;
@@ -1153,7 +1153,7 @@ function wBuildRoadside(W){
 /* ---- дерева (instanced) ---- */
 function wTrees(W){
   const T=[],C=[],S2=[],R2=[],CAC=[];W.treeG={};
-  for(let i=0;i<7000&&T.length+C.length<2400;i++){
+  for(let i=0;i<6000&&T.length+C.length<1700;i++){
     const x=(hash(WSEED,i*3)*2-1)*1150,z=(hash(WSEED,i*3+1)*2-1)*1150,h=hAt(x,z);if(h<1.6||h>50)continue;
     if(nearRoad(x,z,13))continue;let bad=false;for(const l of LOC)if(Math.hypot(l.x-x,l.z-z)<l.fr+25){bad=true;break;}if(bad)continue;
     const des=sm(180,420,x)*sm(80,350,z),snow=Math.max(sm(34,50,h),sm(-820,-960,z)*.9),forest=sm(.48,.62,fbm(x*.004,z*.004,21,3)),roll=hash(WSEED,i*3+2);
@@ -1243,9 +1243,10 @@ function wBuildAll(){
   W.sc.background=new THREE.Color('#8fc9e8');W.sc.fog=new THREE.Fog('#8fc9e8',40,520);
   W.amb=new THREE.AmbientLight('#ffffff',.85);W.sun=new THREE.DirectionalLight('#fff4d6',.8);W.sun.position.set(-30,60,20);W.sc.add(W.amb);W.sc.add(W.sun);
   W.spot=new THREE.SpotLight('#fff2b0',0,120,.6,.5);W.sc.add(W.spot);W.sc.add(W.spot.target);
-  wBuildRoads(W);wBuildLocs(W);wBuildTerrain(W);wRoadMesh(W);
+  const sf=(f,nm)=>{try{f();}catch(e){try{console.error(nm,e);}catch(x){}W.err=(W.err||'')+nm+':'+(e&&e.message)+' ';}};
+  wBuildRoads(W);wBuildLocs(W);wBuildTerrain(W);sf(()=>wRoadMesh(W),'road');
   const wat=new THREE.Mesh(new THREE.PlaneGeometry(4800,4800),new THREE.MeshLambertMaterial({color:'#2f7fb8',transparent:true,opacity:.82}));wat.rotation.x=-Math.PI/2;wat.position.y=0;W.sc.add(wat);W.wat=wat;
-  wTrees(W);wPlaceLocs(W);wBuildRoadside(W);
+  sf(()=>wTrees(W),'trees');sf(()=>wPlaceLocs(W),'locs');sf(()=>wBuildRoadside(W),'side');
   /* мінікарта з кольорів терену */
   try{const c=document.createElement('canvas');c.width=c.height=WN+1;const g=c.getContext('2d'),im=g.createImageData(WN+1,WN+1),n=WN+1;
     for(let i=0;i<n*n;i++){const h=W.H[i];im.data[i*4]=h<0?40:W.col[i*3]*255;im.data[i*4+1]=h<0?110:W.col[i*3+1]*255;im.data[i*4+2]=h<0?170:W.col[i*3+2]*255;im.data[i*4+3]=255;}g.putImageData(im,0,0);W.mm=c;}catch(e){W.mm=null;}
@@ -1262,7 +1263,7 @@ function wBuildAll(){
   const pos=new Float32Array(500*3);for(let i=0;i<500;i++){pos[i*3]=(Math.random()-.5)*60;pos[i*3+1]=Math.random()*25;pos[i*3+2]=(Math.random()-.5)*60;}
   const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));W.rain=new THREE.Points(pg,new THREE.PointsMaterial({color:'#cfe8ff',size:.14,transparent:true,opacity:.75}));W.rain.frustumCulled=false;W.rain.visible=false;W.sc.add(W.rain);W.rpos=pos;
   W.cols=new THREE.Color();W.c2=new THREE.Color();W.sunCol=new THREE.Color();W.envK='';
-  W.spawnSet=false;
+  W.spawnSet=false;if(W.err){try{toast('3D: '+W.err.slice(0,120));}catch(e){}}
 }
 function wRoadAt(r,s,dir){const p=r.pts,c=r.cum;let i=1;while(i<c.length-1&&c[i]<s)i++;const k=(s-c[i-1])/Math.max(.01,c[i]-c[i-1]),a=p[i-1],b=p[i];let tx=b.x-a.x,tz=b.z-a.z;const l=Math.hypot(tx,tz)||1;tx/=l;tz/=l;if(dir<0){tx=-tx;tz=-tz;}
   return{x:a.x+(b.x-a.x)*k+(-tz)*2.4,z:a.z+(b.z-a.z)*k+tx*2.4,tx,tz};}
@@ -1326,7 +1327,7 @@ function wQuestTick(dt){
 function worldStart(){
   if(!use3d){toast(t('wNeed3d'));return;}
   if(wBusy)return;wBusy=true;$('ovP').textContent=t('wLoading');
-  setTimeout(()=>{try{if(!WORLD)wBuildAll();}catch(e){try{console.error(e);}catch(x){}wBusy=false;WORLD=null;toast('3D error');$('ovP').textContent=t('rdyWorld');return;}
+  setTimeout(()=>{try{if(!WORLD)wBuildAll();}catch(e){try{console.error(e);}catch(x){}wBusy=false;WORLD=null;toast('3D: '+(e&&e.message));$('ovP').textContent=t('rdyWorld');return;}
     wBusy=false;wEnter();},40);
 }
 function wEnter(){
@@ -1468,6 +1469,7 @@ function drawWorld(){
   /* LOD локацій */
   W.lodT=(W.lodT||0)-dt;if(W.lodT<=0){W.lodT=.3;LOC.forEach(l=>{const d=Math.hypot(l.x-wp.x,l.z-wp.z);l.g.visible=d<(l.type==='wind'||l.type==='air'||l.type==='city'?760:560);});
     W.labels.forEach(s=>{const d=Math.hypot(s.userData.loc.x-wp.x,s.userData.loc.z-wp.z);s.visible=d>60&&d<1400;});
+    W.signs.forEach(g=>{const q=g.userData.xz;g.visible=Math.hypot(q[0]-wp.x,q[1]-wp.z)<420;});
     W.traffic.forEach(c=>{if(!c.pos)return;c.m.visible=Math.hypot(c.pos.x-wp.x,c.pos.z-wp.z)<500;});}
   W.traffic.forEach(c=>{if(!c.pos||!c.m.visible)return;const k=Math.min(1,dt*8),hd=Math.atan2(c.pos.tx,-c.pos.tz);if(c.vx===undefined||Math.hypot(c.vx-c.pos.x,c.vz-c.pos.z)>30){c.vx=c.pos.x;c.vz=c.pos.z;c.vh=hd;}c.vx+=(c.pos.x-c.vx)*k;c.vz+=(c.pos.z-c.vz)*k;c.vh+=wAngDiff(c.vh,hd)*k;c.m.position.set(c.vx,hAt(c.vx,c.vz),c.vz);c.m.rotation.y=-c.vh;spinWheels(c.m,c.sp*dt/.5);});
   /* анімації */
